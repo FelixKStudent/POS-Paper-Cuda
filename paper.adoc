@@ -110,9 +110,9 @@ This is however by no means a very rigorous test and is only meant to display TO
 
 As expected the tests on the two different GPUs I own show that on smaller vector sizes it is much faster to run on the CPU, but that as the amount of data increases the GPU gets better and better.
 
-== Some More Advanced Features
+== Blocks, Threads & Multidimensional Execution
 
-=== Grids, Blocks, Threads & Multidimensional Execution
+=== The Concept
 
 You might have noticed that when previously worked with the blocks and threads we used the BlockIdx.x and ThreadIdx.x, does the .x mean there are also .y and .z for more dimensions? Yes! 
 
@@ -140,15 +140,11 @@ While the absence of this feature would not necissarily keep us from doing any c
 
 I hope the graphics help in understanding the concept of the CUDA hierarchy and how it works in multiple dimensions. While not shown here, the same process/concept works also for the 3rd dimension allowing for processing of volumes, tensors, etc. 
 
-==== Example Of 2D Processing: Matrix Multiplication
+=== Example Of 2D Processing: Matrix Multiplication
 
-=== Synchronization
+== Another Look At Memory
 
-As previously stated the threads in a block actually have the capacity to comunicate and share memory, this allows for more complex alogirithms and optimizations, however we sometimes need to synchronise the activity of our threads. This can be achieved through the \__syncthreads() function. When called each thread in a block will wait until all other threads of the block have reached this point in the code until continueing. If our kernel code includes any if else we have to make sure that all threads will hit their __syncthreads() calls, as long as at least one of our threads in a block is occupied doing something else all other threads will be waiting for it. 
-
-=== Another Look At Memory
-
-==== Memory Hierarchy
+=== Memory Hierarchy
 
 A CUDA GPU has several different types of memory organized into a straightforward hierarchy displayed in the picture below. Knowing where to optimally place ones data can have huge performance implications and is one of the most important topics when looking at optimization.
 
@@ -162,9 +158,15 @@ Lets take a look at the roles of the differnt memory types:
 * **Global Memory** is the memory we can write into using cudaMalloc and cudaMemcp. It is the slowest of the memory types available on the CUDA GPU, but is accessible from all threads and blocks and is the largest. In our programs we will usually load our data in here intially but try and get it closer to the threads and into faster memory as quickly as possible. All non-scalar, eg. array variables, we create in our kernel function are stored here by default. 
 * **Constant Memory** is simaialer to global memory, with the difference that it can only store constants. Due to this it has slightly faster read times than the global memory. It is set by declaring a variable outside any function body with the \\__constant__ keyword. 
 
-==== Tiling
+=== Tiling
 
-==== Other Memory Tricks 
+=== Tiling Example: Matrix Multiplication Optimization 
+
+==== Synchronization
+
+As previously stated the threads in a block actually have the capacity to comunicate and share memory, this allows for more complex alogirithms and optimizations, however we sometimes need to synchronise the activity of our threads. This can be achieved through the \__syncthreads() function. When called each thread in a block will wait until all other threads of the block have reached this point in the code until continueing. If our kernel code includes any if else we have to make sure that all threads will hit their __syncthreads() calls, as long as at least one of our threads in a block is occupied doing something else all other threads will be waiting for it. 
+
+=== Other Memory Tricks 
 
 == Common errors
 
