@@ -78,7 +78,7 @@ include::FirstSteps\CudaHelloWorld\CudaHelloWorld\kernel.cu[tags=memoryback]
 
 The CUDA kernel is where we actually define the operations we want to perform on our data. So in our case the simple addition of two vector elements.
 
-CUDA execution is organized into a hierarchical structure of so called Grids, Blocks and Threads. Threads are the smallest unit of execution the GPU is capable of. In the end each thread is responsible for a small part of the larger task. Multiple threads are organized to be part of a block. Within this block threads can cooperate through shared memory and synchronization. Finally the blocks are organized into grids, within the grid, blocks operate independently and in parallel, they also do not share memory or communicate. One more complex features this architecture enables is the fact that it allows us to more easily handle data which has a 2d structure(eg. images, matrices) or 3d structure(eg. volumetric computation, video rendering), but more on that later in the paper.
+CUDA execution is organized into a hierarchical structure of so called Grids, Blocks and Threads. Threads are the smallest unit of execution the GPU is capable of. In the end each thread is responsible for a small part of the larger task. Multiple threads are organized to be part of a block. Within this block threads can cooperate through shared memory and synchronization. Finally the blocks are organized into grids, within the grid, blocks operate independently and in parallel, they also do not share memory or communicate. We will look at the more complex features of this architecture later in the paper. 
 
 .Structure of Blocks and their Threads, source: Programming Massively Parallel Processors
 image::Images/BlocksThreads.png[TODO fix picture]
@@ -90,14 +90,14 @@ We can now define our CUDA kernel by using the \\__global__ tag. This designates
 include::FirstSteps\CudaHelloWorld\CudaHelloWorld\kernel.cu[tags=kernel]
 ----
 
-Due to the previously explained block/thread architecture the individual thread has to somehow know what part of the data it is responsible for doing work on, in our case  which nth elements in the vectors to add. This is done through block and thread Ids. Each block is given an Id starting at 0 and each thread contained in this block is given its own Id. Through the use of these two Ids and the block-dimension we can then calculate which part of the data the thread is now responsible for and assign it to the variable i. Note that i is private for each individual thread. Also note that these Ids also exist for the second and third dimension.
+Due to the previously explained block/thread architecture the individual thread has to somehow know what part of the data it is responsible for doing work on, in our case  which nth elements in the vectors to add. This is done through block and thread Ids. Each block is given an Id starting at 0 and each thread contained in this block is given its own Id. Through the use of these two Ids and the block-dimension we can then calculate which part of the data the thread is now responsible for and assign it to the variable i. Note that i is private for each individual thread. 
 
 [, cpp]
 ----
 include::FirstSteps\CudaHelloWorld\CudaHelloWorld\kernel.cu[tags=callVec]
 ----
 
-Having now defined our kernel we can now complete our vecAdd() function by calling it. We pass in two parameters, the first being how many blocks we want to create, and secondly we pass in the number of threads we want per blockfootnote:[This factor depends on the algorithm one is running. Depending on the amount of shared memory, registries and communication the individual threads need, the amount should be higher or lower. Most modern Nvidia GPUs allow for up to 1024-4096 maximum threads per block.]. And lastly we need to hand in the pointers to the inputs for the function.
+Having now defined our kernel we can now complete our vecAdd() function by calling it. We pass in two parameters, the first being how many blocks we want to create, and secondly we pass in the number of threads we want per blockfootnote:[This factor depends on the algorithm one is running. Depending on the amount of shared memory, registries and communication the individual threads need, the amount should be higher or lower. Most modern Nvidia GPUs allow for up to 1024-4096 maximum threads per block.]. With this we are basically telling the GPU how many parrallel computations we want to perform. And lastly we need to hand in the pointers to the inputs for the function.
 
 We have now completed our first CUDA program and are ready to build and compile.
 
@@ -112,15 +112,55 @@ As expected the tests on the two different GPUs I own show that on smaller vecto
 
 == Some More Advances Features
 
-=== Multidimensional Execution
+=== Grids, Blocks, Threads & Multidimensional Execution
 
-As previously mentioned the Grid/Block/Thread hierarchy allows for 
+You might have noticed that when previously worked with the blocks and threads we used the BlockIdx.x and ThreadIdx.x, does the .x mean there are also .y and .z for more dimensions? Yes! 
+
+Say we want to do some processing on some image, doing some computation on each indevidual pixel. While we could use our previous 1D approach like with the vector CUDA has a much nicer approach for splitting up the workload. 
+
+.Structure of Blocks and their Threads, source: CUDA C Programming Guide www.nvidia.com
+image::Images/2DBlocks.png[TODO fix picture, width=400]
+
+In the picture above is shown how it would look if you were to creat a grid with block dimensions of 3x2 and thread dimension of 4x3. The brackets for each Block/Thread denote their respective BlockIdx.x and BlockIdx.y. This can be done by calling below code:
+
+[, cpp]
+----
+dim3 grid(3, 2, 1);
+dim3 block(4, 3, 1)
+someKernel<<<grid, block>>>(someData);
+----
+
+And below is how it would look if we process some small picture, with each thread handeling one pixel. While not displayed in the picture we of course must keep in mind to properly compute the correct indecies of the pixel we are processing like in our program from before using BlockDim.x, but additionally using BlockDim.y.
+
+.Example of how one would assign threads to indeidual pixels of a picture using a 2D Block/Thread setup
+image::Images/PictureExample.png[TODO fix picture]
+
+
+While the absence of this feature would not necissarily keep us from doing any computations on 2D/3D data, it allows for much easier implimentation of algorithms and also greatly helps when optimizing our code, say in the context of memory calls, but more on that later in the paper.
+
+I hope the graphics help in understanding the concept of the CUDA hierarchy and how it works in multiple dimensions. While not shown here, the same process/concept works also for the 3rd dimension allowing for processing of volumes, tensors, etc. 
+
+TODO example 
 
 === Synchronization
+
+As previously stated the threads in a block actually have the capacity to comunicate and share memory, this allows for more complex alogirithms and optimizations, however we sometimes need to synchronise the activity of our threads. This can be achieved through the \__syncthreads() function. When called each thread in a block will wait until all other threads of the block have reached this point in the code until continueing. If our kernel code includes any if else we have to make sure that all threads will hit their __syncthreads() calls, as long as at least one of our threads in a block is occupied doing something else all other threads will be waiting for it. 
 
 === Another Look At Memory
 
 ==== Memory Hierarchy
+
+A CUDA GPU has several different types of memory organized into a straightforward hierarchy displayed in the picture below. Knowing where to optimally place ones data can have huge performance implications and is one of the most important topics when looking at optimization.
+
+.Diagram of the CUDA memory hierarchy, source: Programming Massively Parallel Processors
+image::Images/Memory.png[TODO fix picture]
+
+Lets take a look at the roles of the differnt memory types:
+
+* **Registers** are the fastest type of memory found on the GPU. Each thread has its one registers that are private to it. Registers can only hold a small amount of datafootnote:[While we technically dont have a limit of how big the ressgister of a single thread is, due to the usage of SMs (TODO), it is preferable to keep the ammount of register memory used as low as possivble. For more details of  SMs look at the chapter next steps.]. When we creat a scalar variable inside our kernel function, such as the index in our first example, then these are stored within the threads register.
+* **Shared Memory** is accessible by all threads in one block. Access to it is faster than access to the global memory, but slower than to a threads register. Using the \\__shared__ keyword infront of a variable we set in a kernel function makes it accessible to the other threads in the same block. More on the use of this memory in the next chapter on Tiling. TODO
+* **Global Memory** is the memory we can write into using cudaMalloc and cudaMemcp. It is the slowest of the memory types available on the CUDA GPU, but is accessible from all threads and blocks and is the largest. In our programs we will usually load our data in here intially but try and get it closer to the threads and into faster memory as quickly as possible. All non-scalar, eg. array variables, we create in our kernel function are stored here by default. 
+* **Constant Memory** is simaialer to global memory, with the difference that it can only store constants. Due to this it has slightly faster read times than the global memory. It is set by declaring a variable outside any function body with the \\__constant__ keyword. 
 
 ==== Tiling
 
@@ -128,9 +168,7 @@ As previously mentioned the Grid/Block/Thread hierarchy allows for
 
 == Common errors
 
-== Next Steps
-
-== Resources
+== Next Steps & Further Resources
 Book
 Example programs
 docs 
