@@ -19,7 +19,7 @@ void fillVecs(std::vector<float>& a, std::vector<float>& b, int n)
 
 int main()
 {
-    const int N = 100000000;
+    const int N = 1000000000;
 
     std::vector<float> A, B, C;
     A.reserve(N);

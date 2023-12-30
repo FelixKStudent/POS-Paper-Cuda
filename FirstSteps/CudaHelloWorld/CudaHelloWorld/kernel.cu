@@ -1,16 +1,21 @@
 ﻿#include <iostream>
 #include <vector>
 #include <chrono>
+// tag::imports[]
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include <stdio.h>
+// end::imports[]
 
+// tag::kernel[]
 __global__
 void vecaddkernel(float* a, float* b, float* c, int n) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
     if (i < n) c[i] = a[i] + b[i];
 }
+// end::kernel[]
 
+// tag::memory[]
 void vecadd(const std::vector<float>& h_a, const std::vector<float>& h_b, std::vector<float>& h_c)
 {
     int n = h_a.size();
@@ -23,11 +28,15 @@ void vecadd(const std::vector<float>& h_a, const std::vector<float>& h_b, std::v
     cudaMemcpy(d_b, h_b.data(), size, cudaMemcpyHostToDevice);
 
     cudaMalloc((void**)&d_c, size);
-
+    // end::memory[]
+    // tag::callVec[]
     vecaddkernel<<<ceil(n / 256.0), 256 >>>(d_a, d_b, d_c, n);
+    // end::callVec[]
 
+    // tag::memoryback[]
     cudaMemcpy(h_c.data(), d_c, size, cudaMemcpyDeviceToHost);
     cudaFree(d_a); cudaFree(d_b); cudaFree(d_c);
+    // end::memoryback[]
 }
 
 void fillvecs(std::vector<float>& h_a, std::vector<float>& h_b, int n)
@@ -40,7 +49,7 @@ void fillvecs(std::vector<float>& h_a, std::vector<float>& h_b, int n)
 
 int main()
 {
-    const int n = 100000000;
+    const int n = 10000000000;
 
     std::vector<float> h_a, h_b, h_c;
     h_a.reserve(n);
