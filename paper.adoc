@@ -17,7 +17,11 @@ GPUs are utilized in a variety of well known workloads, among others:
 - Simulation Software (Fluid, Medical, Financial, Weather, etc.)
 - Crypto Mining (Computation of Cryptographic Hashes)
 
-TODO Basically any computation which can be represented well in the format of matrices and matrix-computations can usually be implemented efficiently utilizing GPU hardware. 
+TODO Basically any computation which can be represented well in the format of matrices and matrix-computations can usually be implemented efficiently utilizing GPU hardware.
+
+TODO Cuda used under the hood for most things
+
+TODO not the best choice 
 
 === GPU architecture 
 .Simplified comparison of CPU vs GPU architecture, NVIDIA, CC BY 3.0 <https://creativecommons.org/licenses/by/3.0>, via Wikimedia Commons
@@ -101,15 +105,6 @@ Having now defined our kernel we can now complete our vecAdd() function by calli
 
 We have now completed our first CUDA program and are ready to build and compile.
 
-==== Performance Comparison
-
-Lets us now see if it was even worth it to rewrite our program in CUDA. We expect the CPU to be much faster with smaller vector sizes, given the fact that they are optimized for low latency and also the fact that our CUDA program has some overhead when first copying the data onto the device.
-
-This is however by no means a very rigorous test and is only meant to display TODO
-
-
-As expected the tests on the two different GPUs I own show that on smaller vector sizes it is much faster to run on the CPU, but that as the amount of data increases the GPU gets better and better.
-
 == Blocks, Threads & Multidimensional Execution
 
 === The Concept
@@ -136,11 +131,39 @@ And below is how it would look if we process some small picture, with each threa
 image::Images/PictureExample.png[TODO fix picture]
 
 
-While the absence of this feature would not necissarily keep us from doing any computations on 2D/3D data, it allows for much easier implimentation of algorithms and also greatly helps when optimizing our code, say in the context of memory calls, but more on that later in the paper.
+While the absence of this feature would not necessarily keep us from doing any computations on 2D/3D data, it allows for much easier implementation of algorithms and also greatly helps when optimizing our code, say in the context of memory calls, but more on that later in the paper.
 
 I hope the graphics help in understanding the concept of the CUDA hierarchy and how it works in multiple dimensions. While not shown here, the same process/concept works also for the 3rd dimension allowing for processing of volumes, tensors, etc. 
 
 === Example Of 2D Processing: Matrix Multiplication
+
+https://www.mathsisfun.com/algebra/matrix-multiplying.html[Here] is a quick reminder of how matrix multiplication works.
+
+Matrices are inherently 2D and lend well to small demonstration of how one can use this CUDA feature. For sake of simplicity we are just going to handel square matrices as input. Say we have two 4x4 input matrices, also resulting in a 4x4 matrix. We can split up this resulting matrix like shown in the picture below with blocks dividing the matrix larger groups and threads handling the individual results. Of course on this small scale of matrix using multiple blocks does not really make sense, but with a rise in matrix size at some point we would have to use such a design. 
+
+.Block/Thread view of a 4x4 result Matrix, source: Programming Massively Parallel Processors
+image::Images/MatrixBlocks.png[TODO fix picture]
+
+Now with our matrices and our computational setup is 2D, optimally we would also like to access our matrices using a two-dimensional array like InputA[][]. However due to the ANSI C version that CUDA is based on, for this to be possible the array sizes have to be known at compile time. So we will still be handeling our data as a one-dimensional array by "falttening" it as shown in the picture below. So with a 4x4 Matrix if we would have liked to access an element by matrix[2][3], we will be doing it like this: matrix[2 * Width + 3].
+
+.Flattening of 2D array into 1D array, source: Programming Massively Parallel Processors
+image::Images/Flat.png[TODO fix picture]
+
+We can now define our cuda kernel:
+
+[, cpp]
+----
+include::MatrixMultiplication\MatrixMultiplication\kernel.cu[tags=kernel]
+----
+
+Each thread, responsible for one element of the result matrix, calculates which row and column it is responsible for and then iterates through all elements in the corresponding input matrices and adds the result together. In contrast to the first example, since we are using 2D blocks and threads as shown in the code below, we utilize not only the x index of our threads and blocks but also the y index.
+
+[, cpp]
+----
+include::MatrixMultiplication\MatrixMultiplication\kernel.cu[tags=call]
+----
+
+The memory handling, eg. allocation, copying and freeing stays the same as in the first example, so it is not shown but can be found in the repository.
 
 == Another Look At Memory
 
@@ -160,17 +183,63 @@ Lets take a look at the roles of the differnt memory types:
 
 === Tiling
 
+TODO
+
 === Tiling Example: Matrix Multiplication Optimization 
 
-==== Synchronization
+We start off our tiled kernel by declaring our shared memory versions of our input matrices using the \\__shared__ keyword. Note that we can use a two-dimensional array for the shared matrices as the size, eg. the tile size, is known at compile time. One could also modify the program so that the tile size is adjusted based on the provided hardware, then the code would also have to be modified to use our "flattend" array as previously shown.
 
-As previously stated the threads in a block actually have the capacity to comunicate and share memory, this allows for more complex alogirithms and optimizations, however we sometimes need to synchronise the activity of our threads. This can be achieved through the \__syncthreads() function. When called each thread in a block will wait until all other threads of the block have reached this point in the code until continueing. If our kernel code includes any if else we have to make sure that all threads will hit their __syncthreads() calls, as long as at least one of our threads in a block is occupied doing something else all other threads will be waiting for it. 
+[, cpp]
+----
+include::MatrixMultiplication\MatrixMultiplication\kernel.cu[tags=shared]
+----
+
+Next we compute the row and column we are working on. This has to be done since our input is "flattend"/one-dimensional.
+
+[, cpp]
+----
+include::MatrixMultiplication\MatrixMultiplication\kernel.cu[tags=define]
+----
+
+Next we enter the loop and each thread loads their part of the data from the global memory into our arrays in the blocks shared memory. This is followed by a call to \__syncthreads()
+
+As previously stated the threads in a block actually have the capacity to communicate and share memory, this allows for more complex algorithms and optimizations, however we sometimes need to synchronize the activity of our threads. This can be achieved through the \__syncthreads() function. When called each thread in a block will wait until all other threads of the block have reached this point in the code until continuing. If our kernel code includes any if else we have to make sure that all threads will hit their __syncthreads() calls, as long as at least one of our threads in a block is occupied doing something else all other threads will be waiting for it.
+
+In our code we need to use \__syncthreads() since we need to be sure that all of the threads have put their part of the data into shared memory before we start accessing it. Would we not sync here we could run into issues where one thread that was a bit faster is already reading an element from shared memory before another thread has actually written the correct value into shared memory.
+
+[, cpp]
+----
+include::MatrixMultiplication\MatrixMultiplication\kernel.cu[tags=loopLoad]
+----
+
+Finally we can do our computation as also previously done. Once we have finished with our tile, we have to sync again. This is done because, depending on our tileSize and input, our threads will do multiple iterations before coming to their individual results and we do not want fast threads to overwrite our shared memory while some other thread might still need to read the overwritten element.
+
+Finally we can save our result back into global device memory and our kernel is done computing.
+
+[, cpp]
+----
+include::MatrixMultiplication\MatrixMultiplication\kernel.cu[tags=compute]
+----
+
+The kernel call works the exact same as with our previous example. 
+
+Below is the kernel in its entirety for better reading:
+
+[, cpp]
+----
+include::MatrixMultiplication\MatrixMultiplication\kernel.cu[tags=tiledKernel]
+----
 
 === Other Memory Tricks 
 
+TODO
+
 == Common errors
 
+TODO remove?
+
 == Next Steps & Further Resources
-Book
-Example programs
-docs 
+* Book
+* Example programs
+* docs 
+* TODO
