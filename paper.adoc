@@ -1,4 +1,4 @@
-= Introduction to programming general purpose GPU accelerated applications utilizing CUDA
+= Introduction to programming general purpose GPU accelerated applications utilizing CUDA in C++
 Felix Kunaver
 :toc:
 :sectnums: |,all|
@@ -243,3 +243,7 @@ TODO remove?
 * Example programs
 * docs 
 * TODO
+
+CuDNN
+
+CUBLAS
