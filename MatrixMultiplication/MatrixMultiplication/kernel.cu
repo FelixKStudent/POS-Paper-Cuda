@@ -11,14 +11,18 @@ const int TILE_WIDTH = 2;
 __global__ void MatrixMulKernel(float* InputA, float* InputB, float* Result, int Width) {
 	// Calculate the row index of Result and InputA
 	int Row = blockIdx.y * blockDim.y + threadIdx.y;
+
 	// Calculate the column index of Result and InputB
 	int Col = blockIdx.x * blockDim.x + threadIdx.x;
+
 	if ((Row < Width) && (Col < Width)) {
 		float ResultValue = 0;
+
         // Loop through the row/column and compute the resulting value
 		for (int k = 0; k < Width; ++k) {
 			ResultValue += InputA[Row * Width + k] * InputB[k * Width + Col];
 		}
+        
         Result[Row * Width + Col] = ResultValue;
 	}
 }
