@@ -74,7 +74,7 @@ The CUDA kernel is where we actually define the operations we want to perform on
 CUDA execution is organized into a hierarchical structure of so called Grids, Blocks and Threads. Threads are the smallest unit of execution the GPU is capable of. In the end each thread is responsible for a small part of the larger task. Multiple threads are organized to be part of a block. Within this block threads can cooperate through shared memory and synchronization. Finally the blocks are organized into the grid, within the grid blocks operate independently and in parallel, they also do not share memory or communicate. We will look at the more complex features of this architecture later in the paper. 
 
 .Structure of Blocks and their Threads, source: Programming Massively Parallel Processors
-image::Images/BlocksThreads.png
+image::Images\Threads2.png[]
 
 We can now define our CUDA kernel by using the \\__global__ tag. This designates it as being executed on our GPU device, but only as callable from our host, alternatives are \\__device__ for kernels only called by the device to be run on the device, and \\__host__ for CUDA functions called by the host to be run on the host.
 
@@ -181,9 +181,9 @@ Lets take a look at the roles of the differnt memory types:
 
 === Tiling
 
-With our previous matrix multiplication example we are reading elements from our input matrices multiple times. For example, as shown in the picture below, both thread(0, 0) and thread(0, 1) will read the first row of our A input matrix from global memory. This is unefficiant and is likely to cause memory bandwidth issues. With tiling we will get our threads to cooperate on this reading, and load parts("tiles") of our data into shared local memory for faster overall access.
+With our previous matrix multiplication example we are reading elements from our input matrices multiple times. For example, as shown in the picture below, both thread(0, 0) and thread(0, 1) will read the first row of our A input matrix from global memory. This is inefficiant and is likely to cause memory bandwidth issues. With tiling we will get our threads to cooperate on this reading, and load parts("tiles") of our data into shared local memory for faster overall access.
 
-.Diagram of the CUDA memory hierarchy, source: https://nichijou.co/cuda7-tiling/
+.Multiple threads reading same data, source: https://nichijou.co/cuda7-tiling/
 image::Images/tilingload.jpg[, width = 300]
 
 One factor to look at whether to implement tiling is the ratio of floating point operations to global memory loads for a kernel. Taking a look at our original code as shown below we can see both two read operations to our global memory and 2 floating point operations bringing us to an overall "Compute to Global Memory Access Ratio" (CGAM Ratio) of 1. The lower this ratio the more likely we are to have our performance be memory bound, the higher and we are compute bound. To see where we lie we have to take a look at the hardware we are running our code on, for this example lets look at the top of the line Nvidia H100. It has a global memory bandwidth of 3TB/sec and compute performance of 60Terra floating-point operations per second (FLOPS). Each floating point element we are reading is 4 bytes so we can at maximum compute at 0.75Terra FLOPS because 3TB/4B = 0.75T, and our CGAM Ratio of 1. This is way below what the H100 would be capapble of with its 60Terra FLOPS and we are severly memory bound. If we can get our CGAM Ratio to be higher, meaning more operations per memory load, then we would be able to use more of our compute capabilities. Say with a ratio of 10, we would be able to compute at 7.5Terra FLOPS instead of our original 0.75TFLOPS. 
