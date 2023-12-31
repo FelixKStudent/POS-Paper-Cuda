@@ -169,6 +169,8 @@ The memory handling, eg. allocation, copying and freeing stays the same as in th
 
 === Memory Hierarchy
 
+When programming CUDA we always have to keep in mind the hardware architecture our code will be running on. One important aspect of this is the memory design on modern Nvidia CUDA GPUs.
+
 A CUDA GPU has several different types of memory organized into a straightforward hierarchy displayed in the picture below. Knowing where to optimally place ones data can have huge performance implications and is one of the most important topics when looking at optimization.
 
 .Diagram of the CUDA memory hierarchy, source: Programming Massively Parallel Processors
@@ -184,6 +186,16 @@ Lets take a look at the roles of the differnt memory types:
 === Tiling
 
 TODO
+
+With our previous matrix multiplication example we are reading elements from out input matrices multiple times. For example, as shown in the picture below, both thread(0, 0) and thread(0, 1) will read the first row of our A input matrix from global memory. This is unefficiant and is likely to cause memory bandwidth issues. With tiling we will get our threads to cooperate on this reading, and load parts("tiles") of our data into shared local memory for faster overall access.
+
+.Diagram of the CUDA memory hierarchy, source: https://nichijou.co/cuda7-tiling/
+image::Images/tilingload.jpg[TODO fix picture, width = 300]
+
+One factor to look at whether to implement tiling is the ration of floating point operations to global memory loads for a kernel. Taking a look at our original code as shown below.
+
+.Diagram of the CUDA memory hierarchy, source: https://nichijou.co/cuda7-tiling/
+image::Images/RatioMatrix.png[TODO fix picture, width = 500]
 
 === Tiling Example: Matrix Multiplication Optimization 
 
@@ -247,3 +259,6 @@ TODO remove?
 CuDNN
 
 CUBLAS
+
+* If you are interested in diving deeper into the memory optimization aspects looking at "Texture Memory", a type of memory found on new Nvidia GPUs might be interesting
+* For work on machine learning/neural networks the most intersting thing will be CuDNN, the library that TODO
